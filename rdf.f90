@@ -1,5 +1,5 @@
 program rdf
-use dynamicsModule
+use pbc_module
 implicit none
 character(25)                           :: fName
 character(5)                            :: trash
