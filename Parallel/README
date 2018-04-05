@@ -1,5 +1,21 @@
 README PARALLEL VERSION
 
+MODULES:
+
+Testing different modules, we found the optimal ones to run our simulations are:
+
+openmpi/1.4.6-gcc/4.6.0
+openmpi/1.4.1
+
+Type "module load <your_module>" to load the wanted module.
+
+For BSC, we found that the modules:
+gcc/3.3
+openmpi/1.8.1
+
+Allows us to compile the program, but always showed errors. 
+
+
 MAKEFILE:
 
 Type "make" to compile everything
