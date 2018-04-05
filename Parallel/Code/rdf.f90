@@ -102,7 +102,6 @@ if (rank == rMaster) then
         open(unit=unOut, file='rdf.out')
         minRad  = iniRad
         minRad2 = iniRad + pasR
-   
         do i = 1, nRad + 2, 1
                 Vmin = 4./3.*3.14*minRad**3
                 Vmax = 4./3.*3.14*minRad2**3
