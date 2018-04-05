@@ -11,7 +11,8 @@ real(8), dimension(nPart,3), intent(inout)      :: vel
 real(8)                                         :: x1, x2, y1, y2, w
 integer                                         :: i, j, k
 
-!call srand(seed)
+! EACH THREAD ONLY OPERATES TO ITS PARTICLE RANGE
+! SO ONLY LOOPS FROM myFirstPart TO myLastPart
 do i = myFirstPart, myLastPart, 1
         if (rand() < 0.1) then
                 ! canvia la velocitat d'aquesta particula segons una distribució

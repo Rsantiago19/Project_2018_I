@@ -19,9 +19,13 @@ real(8)                                 :: iniT, finalT, temps, Vmin, Vmax
 integer                                 :: ierror, rank, numProcs, status, numParts, myFirstPart, myLastPart
 integer, parameter                      :: rMaster = 0
 
+! INITIALIZE ALL THE MPI ENVIROMENT
 call mpi_init(ierror)
 call mpi_comm_rank(mpi_comm_world, rank, ierror)
 call mpi_comm_size(mpi_comm_world, numProcs, ierror)
+
+! ALL THE THREADS READ THE INPUT THAT SHOULD BE PROVIDED
+! OTHERWISE THE PROGRAM ENDS BY CALLING mpi_finalize()
 call get_command_argument(1, fName, status=fStat)
 if (fStat /= 0) then
         print*, 'Any file given ---> Exitting program'
@@ -32,6 +36,10 @@ end if
 un = 100; unOut = 101
 open(unit=un, file=trim(fName), status='old')
 
+! THE MASTER THREAD READ THE DATA FROM THE SECOND INPUT FILE
+! THE DATA PROVIDED IS:
+        ! NUMBER OF ITERATIONS, NUMBER OF PARTICLES
+        ! BOX SIZE
 if (rank == rMaster) then
         call cpu_time(iniT)
         call get_command_argument(2, fName, status= fStat)
@@ -46,21 +54,24 @@ if (rank == rMaster) then
 
 end if
 
+! THE PARAMETERS ARE BROADCASTED TO ALL THE THREADS
 call mpi_bcast(nPart, 1, mpi_integer, rMaster, mpi_comm_world, ierror)
 call mpi_bcast(nIt, 1, mpi_integer, rMaster, mpi_comm_world, ierror)
 call mpi_bcast(boxSize, 1, mpi_real8, rMaster, mpi_comm_world, ierror)
 
+! CALCULATE THE NUMBER OF STEPS AND SET THE INITIAL AND FINAL RADII
 iniRad = 1D-4; finRad = boxSize; nRad = 200
 pasR = (finRad - iniRad)/dfloat(nRad)
 
 allocate(pos(nPart,3), histogram(nRad + 2), masterHistogram(nRad + 2))
 
+! SPLITS THE PARTICLES THAT EVERY PROCESSOR WILL WORK WITH AMONG THE THREADS
 call rows_per_proc(nPart, myFirstPart, myLastPart)
 
+! EVERY THREAD FILLS THE PARTIAL HISTOGRAM
 histogram(:) = 0.0D0
 masterHistogram(:) = 0.0D0
 do i = 1, nIt, 1
-        if (rank == rMaster) print*, 'jejej he fet una iter.', i
         read(un,*) nPart
         read(un,*) trash
         do j = 1, nPart, 1
@@ -94,10 +105,11 @@ do i = 1, nIt, 1
         end do
 end do
 
+! THE TOTAL HISTOGRAM IS COLLECTED BY THE MASTER
 call mpi_reduce(histogram, masterHistogram, (nRad + 2), mpi_real8, mpi_sum, rMaster, mpi_comm_world, ierror)
 
 
-!histogram(:) = histogram(:)/(pasR*sum(histogram))
+! NORMALIZE THE HISTOGRAM AND WRITE IT DOWN TO AN OUPTUT FILE
 if (rank == rMaster) then
         open(unit=unOut, file='rdf.out')
         minRad  = iniRad

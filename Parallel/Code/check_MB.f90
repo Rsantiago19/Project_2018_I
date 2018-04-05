@@ -17,38 +17,45 @@ real(8)                                 :: iniT, finalT, temps
 integer                                 :: ierror, rank, numProcs, status, numParts, myFirstPart, myLastPart
 integer, parameter                      :: rMaster = 0
 
+! INITIALIZE ALL THE MPI ENVIROMENT
 call mpi_init(ierror)
 call mpi_comm_rank(mpi_comm_world, rank, ierror)
 call mpi_comm_size(mpi_comm_world, numProcs, ierror)
 
-        call get_command_argument(1, fName, status=fStat)
-        if (fStat /= 0) then
-                print*, 'Any file given ---> Exitting program'
-                call mpi_finalize(ierror)
-                call exit()
-        end if
-        un = 100; unOut = 101
-        open(unit=un, file=trim(fName), status='old')
-        call cpu_time(iniT)
-        call get_command_argument(2, fName, status=fStat)
-        if (fStat /= 0) then
-                print*, 'Any file given ---> Exitting program'
-                call mpi_finalize(ierror)
-                call exit()
-        end if
-        open(unit=paramUn, file=trim(fName), status='old')
-        read(paramUn,*) nIt, nPart
+
+! ALL THE THREADS READ THE INPUT THAT SHOULD BE PROVIDED
+! OTHERWISE THE PROGRAM ENDS BY CALLING mpi_finalize()
+call get_command_argument(1, fName, status=fStat)
+if (fStat /= 0) then
+        print*, 'Any file given ---> Exitting program'
+        call mpi_finalize(ierror)
+        call exit()
+end if
+un = 100; unOut = 101
+open(unit=un, file=trim(fName), status='old')
+call cpu_time(iniT)
+call get_command_argument(2, fName, status=fStat)
+if (fStat /= 0) then
+        print*, 'Any file given ---> Exitting program'
+        call mpi_finalize(ierror)
+        call exit()
+end if
+open(unit=paramUn, file=trim(fName), status='old')
+read(paramUn,*) nIt, nPart
 
 
-
+! SET THE MINIMUM AND MAXIMUM VELOCITIES CATCHED TO -15:15 
+! AND CALCULATE THE HISTOGRAM WIDTH
 iniHist = -15.0D0; finHist = 15.0D0; nHist = 3000
 pasH = (finHist - iniHist)/dfloat(nHist)
 call mpi_bcast(nIt, 1, mpi_integer, rMaster, mpi_comm_world, ierror)
 call mpi_bcast(nPart, 1, mpi_integer, rMaster, mpi_comm_world, ierror)
 allocate(vel(nPart,3), histogram(nHist + 2), masterHistogram(nHist + 2))
 
+! SPLITS THE PARTICLES THAT EVERY PROCESSOR WILL WORK WITH AMONG THE THREADS
 call rows_per_proc(nPart, myFirstPart, myLastPart)
 
+! EVERY THREAD FILLS THE PARTIAL HISTOGRAM
 histogram(:) = 0
 masterHistogram(:) = 0
 do i = 1, nIt, 1
@@ -60,7 +67,6 @@ do i = 1, nIt, 1
         end do
         do k = myFirstPart, myLastPart, 1; do l = 1, 3, 1
                 vec(:) = vel(k,:)
-                !modV = dsqrt(dot_product(vec,vec))
 
                 minVel  = iniHist
                 minVel2 = iniHist + pasH
@@ -78,12 +84,13 @@ do i = 1, nIt, 1
                         histogram(nHist+2) = histogram(nHist+2) + 1
                 end if
         end do; end do
-        end do
+end do
 
+! THE TOTAL HISTOGRAM IS COLLECTED BY THE MASTER
 call mpi_reduce(histogram, masterHistogram, (nHist + 2), mpi_real8, mpi_sum, rMaster, mpi_comm_world, ierror)
 
 if (rank == rMaster) then
-        ! NORMALITZACIÓ
+        ! NORMALIZATION OF THE HISTOGRAM AND OUTPUT O THE FILE
         masterHistogram(:) = masterHistogram(:)/sum(3*masterHistogram(:)*pasH)
 
         open(unit=unOut, file='MB_velocityDistribution.out')
